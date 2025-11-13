@@ -1,6 +1,6 @@
 import logging
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import Updater, CommandHandler, MessageHandler, ConversationHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, filters
 
 # Настройка логирования
 logging.basicConfig(
@@ -139,9 +139,8 @@ async def cancel(update: Update, context):
     return ConversationHandler.END
 
 def main():
-    # ВСТАВЛЕН ВАШ ТОКЕН
-    updater = Updater("8378315151:AAGkqCMlMbD54PdlpOjgxy1F-EatxPtgRTg")
-    dispatcher = updater.dispatcher
+    # Инициализация приложения с использованием Application вместо Updater
+    application = Application.builder().token("8378315151:AAGkqCMlMbD54PdlpOjgxy1F-EatxPtgRTg").build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
@@ -155,11 +154,10 @@ def main():
         fallbacks=[CommandHandler('cancel', cancel)],
     )
 
-    dispatcher.add_handler(conv_handler)
+    application.add_handler(conv_handler)
     
     # Запуск бота
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
