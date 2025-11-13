@@ -113,7 +113,7 @@ async def contact(update: Update, context):
         'phone': phone
     }
     
-    # Отправляем уведомление администратору (Вам, Константин)
+    # Отправляем уведомление администратору (Вам, Константин) в ЛИЧНЫЕ сообщения
     admin_message = (
         "🚨 НОВЫЙ ЛИД!\n\n"
         f"Телефон: {phone}\n"
@@ -122,7 +122,11 @@ async def contact(update: Update, context):
         f"Стоимость аппарата: {user_data['cost']} млн руб"
     )
     
-    await context.bot.send_message(chat_id=797093764, text=admin_message)
+    # ВАЖНО: Используем application.bot для отправки в личные сообщения
+    await context.application.bot.send_message(
+        chat_id=797093764, 
+        text=admin_message
+    )
     
     await update.message.reply_text(
         'Спасибо! Ваш запрос передан эксперту. '
