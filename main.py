@@ -10,7 +10,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Состояния разговора
-EQUIPMENT_TYPE, UZI_TYPE, EQUIPMENT_DETAILS, YEAR, COST, DOWNTIME, MIN_RESEARCH_COST, MAX_RESEARCH_COST, MIN_STUDIES_PER_HOUR, MAX_STUDIES_PER_HOUR, WORKING_DAYS, NEED_REPLACEMENT, CONTACT = range(13)
+EQUIPMENT_TYPE, UZI_TYPE, EQUIPMENT_DETAILS, YEAR, SHORT_STUDIES_COUNT, SHORT_STUDY_COST, LONG_STUDIES_COUNT, LONG_STUDY_COST, DOWNTIME, WORKING_DAYS, NEED_REPLACEMENT, CONTACT = range(12)
 
 # Клавиатура для выбора оборудования
 equipment_keyboard = [
@@ -36,8 +36,13 @@ NO_REPLACEMENT_EQUIPMENT = ['КТ', 'МРТ', 'Рентген']
 async def start(update: Update, context):
     await update.message.reply_text(
         'Привет! Я помогу посчитать, сколько денег теряет ваша клиника '
-        'из-за простоя оборудования с учетом амортизации.\n\n'
+        'из-за простоя оборудования.\n\n'
+        '📊 <b>Методика расчета основана на нормативах Минздрава РФ:</b>\n'
+        '• Учет разной длительности исследований (15-20 мин и 30-60 мин)\n'
+        '• Средневзвешенный расчет дохода в час\n'
+        '• Реальные показатели потерь доходов\n\n'
         'Выберите тип аппарата:',
+        parse_mode='HTML',
         reply_markup=ReplyKeyboardMarkup(
             equipment_keyboard, 
             one_time_keyboard=True,
@@ -83,7 +88,7 @@ async def equipment_details(update: Update, context):
     user_data['equipment_details'] = equipment_details
     
     await update.message.reply_text(
-        'Введите год производства оборудования:'
+        'Введите год производства оборудования (для статистики):'
     )
     return YEAR
 
@@ -101,26 +106,81 @@ async def year(update: Update, context):
         user_data['equipment_age'] = equipment_age
         
         await update.message.reply_text(
-            'Введите первоначальную стоимость аппарата в млн руб:'
+            '📊 <b>Учет структуры исследований</b>\n\n'
+            'Согласно нормативам Минздрава, исследования различаются по длительности:\n'
+            '• Короткие: 15-20 минут\n• Длинные: 30-60 минут\n\n'
+            'Сколько <b>коротких исследований (15-20 мин)</b> вы проводите в час?',
+            parse_mode='HTML'
         )
-        return COST
+        return SHORT_STUDIES_COUNT
     except ValueError:
         await update.message.reply_text('Пожалуйста, введите год цифрами:')
         return YEAR
 
-async def cost(update: Update, context):
+async def short_studies_count(update: Update, context):
     user_data = context.user_data
     try:
-        cost_value = float(update.message.text)
-        user_data['cost'] = cost_value
+        short_count = float(update.message.text)
+        user_data['short_studies_count'] = short_count
         
         await update.message.reply_text(
-            'Сколько часов в день простаивает оборудование в среднем?'
+            'Введите <b>среднюю стоимость короткого исследования</b> (15-20 мин) в рублях:',
+            parse_mode='HTML'
+        )
+        return SHORT_STUDY_COST
+    except ValueError:
+        await update.message.reply_text('Пожалуйста, введите число:')
+        return SHORT_STUDIES_COUNT
+
+async def short_study_cost(update: Update, context):
+    user_data = context.user_data
+    try:
+        short_cost = float(update.message.text)
+        user_data['short_study_cost'] = short_cost
+        
+        await update.message.reply_text(
+            'Сколько <b>длинных исследований (30-60 мин)</b> вы проводите в час?',
+            parse_mode='HTML'
+        )
+        return LONG_STUDIES_COUNT
+    except ValueError:
+        await update.message.reply_text('Пожалуйста, введите число:')
+        return SHORT_STUDY_COST
+
+async def long_studies_count(update: Update, context):
+    user_data = context.user_data
+    try:
+        long_count = float(update.message.text)
+        user_data['long_studies_count'] = long_count
+        
+        await update.message.reply_text(
+            'Введите <b>среднюю стоимость длинного исследования</b> (30-60 мин) в рублях:',
+            parse_mode='HTML'
+        )
+        return LONG_STUDY_COST
+    except ValueError:
+        await update.message.reply_text('Пожалуйста, введите число:')
+        return LONG_STUDIES_COUNT
+
+async def long_study_cost(update: Update, context):
+    user_data = context.user_data
+    try:
+        long_cost = float(update.message.text)
+        user_data['long_study_cost'] = long_cost
+        
+        # Расчет дохода в час
+        hourly_income = (user_data['short_studies_count'] * user_data['short_study_cost'] + 
+                        user_data['long_studies_count'] * user_data['long_study_cost'])
+        user_data['hourly_income'] = hourly_income
+        
+        await update.message.reply_text(
+            'Сколько <b>часов в день</b> простаивает оборудование в среднем?',
+            parse_mode='HTML'
         )
         return DOWNTIME
     except ValueError:
         await update.message.reply_text('Пожалуйста, введите число:')
-        return COST
+        return LONG_STUDY_COST
 
 async def downtime(update: Update, context):
     user_data = context.user_data
@@ -129,80 +189,13 @@ async def downtime(update: Update, context):
         user_data['downtime'] = downtime_hours
         
         await update.message.reply_text(
-            'Введите МИНИМАЛЬНУЮ стоимость одного исследования в рублях:'
-        )
-        return MIN_RESEARCH_COST
-    except ValueError:
-        await update.message.reply_text('Пожалуйста, введите число:')
-        return DOWNTIME
-
-async def min_research_cost(update: Update, context):
-    user_data = context.user_data
-    try:
-        min_cost = float(update.message.text)
-        user_data['min_research_cost'] = min_cost
-        
-        await update.message.reply_text(
-            'Введите МАКСИМАЛЬНУЮ стоимость одного исследования в рублях:'
-        )
-        return MAX_RESEARCH_COST
-    except ValueError:
-        await update.message.reply_text('Пожалуйста, введите число:')
-        return MIN_RESEARCH_COST
-
-async def max_research_cost(update: Update, context):
-    user_data = context.user_data
-    try:
-        max_cost = float(update.message.text)
-        min_cost = user_data['min_research_cost']
-        
-        if max_cost <= min_cost:
-            await update.message.reply_text('Максимальная стоимость должна быть больше минимальной. Введите заново:')
-            return MAX_RESEARCH_COST
-            
-        user_data['max_research_cost'] = max_cost
-        
-        await update.message.reply_text(
-            'Введите МИНИМАЛЬНОЕ количество исследований в час:'
-        )
-        return MIN_STUDIES_PER_HOUR
-    except ValueError:
-        await update.message.reply_text('Пожалуйста, введите число:')
-        return MAX_RESEARCH_COST
-
-async def min_studies_per_hour(update: Update, context):
-    user_data = context.user_data
-    try:
-        min_studies = float(update.message.text)
-        user_data['min_studies_per_hour'] = min_studies
-        
-        await update.message.reply_text(
-            'Введите МАКСИМАЛЬНОЕ количество исследований в час:'
-        )
-        return MAX_STUDIES_PER_HOUR
-    except ValueError:
-        await update.message.reply_text('Пожалуйста, введите число:')
-        return MIN_STUDIES_PER_HOUR
-
-async def max_studies_per_hour(update: Update, context):
-    user_data = context.user_data
-    try:
-        max_studies = float(update.message.text)
-        min_studies = user_data['min_studies_per_hour']
-        
-        if max_studies <= min_studies:
-            await update.message.reply_text('Максимальное количество должно быть больше минимального. Введите заново:')
-            return MAX_STUDIES_PER_HOUR
-            
-        user_data['max_studies_per_hour'] = max_studies
-        
-        await update.message.reply_text(
-            'Сколько рабочих дней в месяце? (частные клиники обычно 30):'
+            'Сколько <b>рабочих дней в месяце</b>? (частные клиники обычно 30):',
+            parse_mode='HTML'
         )
         return WORKING_DAYS
     except ValueError:
         await update.message.reply_text('Пожалуйста, введите число:')
-        return MAX_STUDIES_PER_HOUR
+        return DOWNTIME
 
 async def working_days(update: Update, context):
     user_data = context.user_data
@@ -214,27 +207,12 @@ async def working_days(update: Update, context):
             
         user_data['working_days'] = working_days_value
         
-        # Расчеты...
-        avg_research_cost = (user_data['min_research_cost'] + user_data['max_research_cost']) / 2
-        avg_studies_per_hour = (user_data['min_studies_per_hour'] + user_data['max_studies_per_hour']) / 2
+        # Расчет потерь по новой формуле
+        daily_loss = user_data['hourly_income'] * user_data['downtime']
+        monthly_loss = daily_loss * working_days_value
         
-        user_data['avg_research_cost'] = avg_research_cost
-        user_data['avg_studies_per_hour'] = avg_studies_per_hour
-        
-        equipment_age = user_data['equipment_age']
-        amortization_factor = max(0, 1 - (equipment_age / 15))
-        amortized_cost = user_data['cost'] * amortization_factor
-        
-        lost_revenue_per_hour = avg_studies_per_hour * avg_research_cost
-        daily_lost_revenue = lost_revenue_per_hour * user_data['downtime']
-        monthly_lost_revenue = daily_lost_revenue * working_days_value
-        
-        monthly_loss = monthly_lost_revenue * (1 - amortization_factor * 0.3)
-        
+        user_data['daily_loss'] = daily_loss
         user_data['monthly_loss'] = monthly_loss
-        user_data['amortization_factor'] = amortization_factor
-        user_data['amortized_cost'] = amortized_cost
-        user_data['monthly_lost_revenue'] = monthly_lost_revenue
         
         await update.message.reply_text(
             'Потребуется ли вам подменное оборудование на время простоя?',
@@ -253,7 +231,7 @@ async def need_replacement(update: Update, context):
     need_replacement = update.message.text
     user_data['need_replacement'] = need_replacement
     
-    amortization_percent = (1 - user_data['amortization_factor']) * 100
+    # Форматируем информацию об оборудовании
     equipment_info = user_data['equipment']
     if user_data['equipment'] == 'УЗИ' and 'uzi_type' in user_data:
         equipment_info = f"{user_data['equipment']} ({user_data['uzi_type']})"
@@ -262,6 +240,7 @@ async def need_replacement(update: Update, context):
     if 'equipment_details' in user_data and user_data['equipment_details']:
         equipment_model_info = f"\n• <b>Модель аппарата:</b> {user_data['equipment_details']}"
     
+    # Определяем возможность предложения подменного оборудования
     replacement_offer = ""
     if need_replacement == 'Да':
         if user_data['equipment'] in NO_REPLACEMENT_EQUIPMENT:
@@ -271,20 +250,25 @@ async def need_replacement(update: Update, context):
             if user_data['equipment'] == 'УЗИ':
                 replacement_offer += f"\nСпециализация: {user_data.get('uzi_type', 'универсальный')}"
     
+    # Расчет структуры доходов для отчета
+    short_income = user_data['short_studies_count'] * user_data['short_study_cost']
+    long_income = user_data['long_studies_count'] * user_data['long_study_cost']
+    total_hourly_income = short_income + long_income
+    
     await update.message.reply_text(
-        f"📉 <b>Результаты расчета с учетом амортизации:</b>\n\n"
+        f"📉 <b>Результаты расчета по методике Минздрава РФ:</b>\n\n"
         f"• <b>Тип аппарата:</b> {equipment_info}{equipment_model_info}\n"
         f"• <b>Год выпуска:</b> {user_data['year']} ({user_data['equipment_age']} лет)\n"
-        f"• <b>Стоимость:</b> {user_data['cost']} млн руб\n"
-        f"• <b>Амортизация:</b> {amortization_percent:.1f}%\n"
-        f"• <b>Остаточная стоимость:</b> {user_data['amortized_cost']:.1f} млн руб\n"
         f"• <b>Простой:</b> {user_data['downtime']} ч/день\n"
-        f"• <b>Рабочих дней:</b> {user_data['working_days']} в месяце\n"
-        f"• <b>Стоимость исследований:</b> {user_data['min_research_cost']:,.0f} - {user_data['max_research_cost']:,.0f} руб\n"
-        f"• <b>Количество исследований:</b> {user_data['min_studies_per_hour']} - {user_data['max_studies_per_hour']} в час\n"
-        f"• <b>Подменное оборудование:</b> {need_replacement}\n\n"
-        f"<b>ВАШИ ПОТЕРИ:</b> ~{user_data['monthly_loss']:,.0f} руб/месяц\n"
-        f"<b>УТЕРЯННЫЙ ДОХОД:</b> ~{user_data['monthly_lost_revenue']:,.0f} руб/месяц{replacement_offer}\n\n"
+        f"• <b>Рабочих дней:</b> {user_data['working_days']} в месяце\n\n"
+        f"<b>СТРУКТУРА ДОХОДА В ЧАС:</b>\n"
+        f"• Короткие исследования: {user_data['short_studies_count']} × {user_data['short_study_cost']:,.0f} руб = {short_income:,.0f} руб\n"
+        f"• Длинные исследования: {user_data['long_studies_count']} × {user_data['long_study_cost']:,.0f} руб = {long_income:,.0f} руб\n"
+        f"• <b>Итого в час:</b> {total_hourly_income:,.0f} руб\n\n"
+        f"<b>ВАШИ ПОТЕРИ:</b>\n"
+        f"• В день: ~{user_data['daily_loss']:,.0f} руб\n"
+        f"• В месяц: ~{user_data['monthly_loss']:,.0f} руб{replacement_offer}\n\n"
+        f"<i>Расчет основан на нормативах длительности исследований Минздрава РФ</i>\n\n"
         f"Хотите получить детальный расчет от эксперта? "
         f"Оставьте ваш телефон - перезвоню в течение 15 минут:",
         parse_mode='HTML'
@@ -295,6 +279,7 @@ async def contact(update: Update, context):
     user_data = context.user_data
     phone = update.message.text
     
+    # Формируем информацию об оборудовании
     equipment_info = user_data['equipment']
     if user_data['equipment'] == 'УЗИ' and 'uzi_type' in user_data:
         equipment_info = f"{user_data['equipment']} ({user_data['uzi_type']})"
@@ -303,21 +288,22 @@ async def contact(update: Update, context):
     if 'equipment_details' in user_data and user_data['equipment_details']:
         equipment_model_info = f"\nМодель: {user_data['equipment_details']}"
     
+    # Отправляем уведомление администратору с полной информацией
     admin_message = (
-        "🚨 НОВЫЙ ЛИД С РАСЧЕТОМ АМОРТИЗАЦИИ!\n\n"
+        "🚨 НОВЫЙ ЛИД С РАСЧЕТОМ ПО МЕТОДИКЕ МИНЗДРАВА!\n\n"
         f"Телефон: {phone}\n"
         f"Оборудование: {equipment_info}{equipment_model_info}\n"
         f"Год выпуска: {user_data['year']} ({user_data['equipment_age']} лет)\n"
-        f"Амортизация: {(1 - user_data['amortization_factor']) * 100:.1f}%\n"
-        f"Потери: {user_data['monthly_loss']:,.0f} руб/мес\n"
-        f"Утерянный доход: {user_data['monthly_lost_revenue']:,.0f} руб/мес\n"
-        f"Стоимость аппарата: {user_data['cost']} млн руб\n"
-        f"Стоимость исследований: {user_data['min_research_cost']:,.0f} - {user_data['max_research_cost']:,.0f} руб\n"
-        f"Количество исследований: {user_data['min_studies_per_hour']} - {user_data['max_studies_per_hour']} в час\n"
+        f"Доход в час: {user_data['hourly_income']:,.0f} руб\n"
+        f"Потери в месяц: {user_data['monthly_loss']:,.0f} руб\n"
+        f"Короткие исследования: {user_data['short_studies_count']} × {user_data['short_study_cost']:,.0f} руб\n"
+        f"Длинные исследования: {user_data['long_studies_count']} × {user_data['long_study_cost']:,.0f} руб\n"
+        f"Простой: {user_data['downtime']} ч/день\n"
         f"Подменное оборудование: {user_data['need_replacement']}\n"
         f"Рабочих дней: {user_data['working_days']}"
     )
     
+    # Добавляем информацию о возможности подмены
     if user_data['need_replacement'] == 'Да':
         if user_data['equipment'] in NO_REPLACEMENT_EQUIPMENT:
             admin_message += f"\n\n❌ НЕ ПРЕДОСТАВЛЯЕМ ПОДМЕНУ: {user_data['equipment']}"
@@ -347,7 +333,6 @@ async def cancel(update: Update, context):
     return ConversationHandler.END
 
 def main():
-    # ВАЖНО: Используем Application вместо Updater
     application = Application.builder().token("8378315151:AAGkqCMlMbD54PdlpOjgxy1F-EatxPtgRTg").build()
 
     conv_handler = ConversationHandler(
@@ -357,12 +342,11 @@ def main():
             UZI_TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, uzi_type)],
             EQUIPMENT_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, equipment_details)],
             YEAR: [MessageHandler(filters.TEXT & ~filters.COMMAND, year)],
-            COST: [MessageHandler(filters.TEXT & ~filters.COMMAND, cost)],
+            SHORT_STUDIES_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, short_studies_count)],
+            SHORT_STUDY_COST: [MessageHandler(filters.TEXT & ~filters.COMMAND, short_study_cost)],
+            LONG_STUDIES_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, long_studies_count)],
+            LONG_STUDY_COST: [MessageHandler(filters.TEXT & ~filters.COMMAND, long_study_cost)],
             DOWNTIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, downtime)],
-            MIN_RESEARCH_COST: [MessageHandler(filters.TEXT & ~filters.COMMAND, min_research_cost)],
-            MAX_RESEARCH_COST: [MessageHandler(filters.TEXT & ~filters.COMMAND, max_research_cost)],
-            MIN_STUDIES_PER_HOUR: [MessageHandler(filters.TEXT & ~filters.COMMAND, min_studies_per_hour)],
-            MAX_STUDIES_PER_HOUR: [MessageHandler(filters.TEXT & ~filters.COMMAND, max_studies_per_hour)],
             WORKING_DAYS: [MessageHandler(filters.TEXT & ~filters.COMMAND, working_days)],
             NEED_REPLACEMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, need_replacement)],
             CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, contact)],
@@ -372,7 +356,6 @@ def main():
 
     application.add_handler(conv_handler)
     
-    # Запускаем бота
     application.run_polling()
 
 if __name__ == '__main__':
