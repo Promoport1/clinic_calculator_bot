@@ -1,6 +1,6 @@
 import logging
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
+from telegram.ext import Updater, CommandHandler, MessageHandler, ConversationHandler, filters
 
 # Настройка логирования
 logging.basicConfig(
@@ -146,11 +146,11 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            EQUIPMENT_TYPE: [MessageHandler(Filters.text & ~Filters.command, equipment_type)],
-            COST: [MessageHandler(Filters.text & ~Filters.command, cost)],
-            DOWNTIME: [MessageHandler(Filters.text & ~Filters.command, downtime)],
-            RESEARCH_COST: [MessageHandler(Filters.text & ~Filters.command, research_cost)],
-            CONTACT: [MessageHandler(Filters.text & ~Filters.command, contact)],
+            EQUIPMENT_TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, equipment_type)],
+            COST: [MessageHandler(filters.TEXT & ~filters.COMMAND, cost)],
+            DOWNTIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, downtime)],
+            RESEARCH_COST: [MessageHandler(filters.TEXT & ~filters.COMMAND, research_cost)],
+            CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, contact)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
     )
