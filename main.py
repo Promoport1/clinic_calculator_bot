@@ -51,7 +51,6 @@ async def equipment_type(update: Update, context):
     equipment = update.message.text
     user_data['equipment'] = equipment
     
-    # Если выбрано УЗИ, переходим к выбору типа УЗИ
     if equipment == 'УЗИ':
         await update.message.reply_text(
             'Выберите направление УЗИ исследований:',
@@ -62,7 +61,6 @@ async def equipment_type(update: Update, context):
         )
         return UZI_TYPE
     else:
-        # Для остального оборудования переходим к вводу деталей
         await update.message.reply_text(
             'Укажите марку, модель и название аппарата (например: "Philips Brilliance 64 CT" или "Siemens Magnetom Avanto 1.5T МРТ"):',
             reply_markup=ReplyKeyboardRemove()
@@ -216,24 +214,21 @@ async def working_days(update: Update, context):
             
         user_data['working_days'] = working_days_value
         
-        # Расчет средней стоимости и среднего количества исследований
+        # Расчеты...
         avg_research_cost = (user_data['min_research_cost'] + user_data['max_research_cost']) / 2
         avg_studies_per_hour = (user_data['min_studies_per_hour'] + user_data['max_studies_per_hour']) / 2
         
         user_data['avg_research_cost'] = avg_research_cost
         user_data['avg_studies_per_hour'] = avg_studies_per_hour
         
-        # Расчет потерь с учетом амортизации
         equipment_age = user_data['equipment_age']
-        amortization_factor = max(0, 1 - (equipment_age / 15))  # Линейная амортизация за 15 лет
+        amortization_factor = max(0, 1 - (equipment_age / 15))
         amortized_cost = user_data['cost'] * amortization_factor
         
-        # Расчет потерь дохода
         lost_revenue_per_hour = avg_studies_per_hour * avg_research_cost
         daily_lost_revenue = lost_revenue_per_hour * user_data['downtime']
         monthly_lost_revenue = daily_lost_revenue * working_days_value
         
-        # Учет амортизации в потерях
         monthly_loss = monthly_lost_revenue * (1 - amortization_factor * 0.3)
         
         user_data['monthly_loss'] = monthly_loss
@@ -258,18 +253,15 @@ async def need_replacement(update: Update, context):
     need_replacement = update.message.text
     user_data['need_replacement'] = need_replacement
     
-    # Форматируем вывод
     amortization_percent = (1 - user_data['amortization_factor']) * 100
     equipment_info = user_data['equipment']
     if user_data['equipment'] == 'УЗИ' and 'uzi_type' in user_data:
         equipment_info = f"{user_data['equipment']} ({user_data['uzi_type']})"
     
-    # Добавляем информацию о модели оборудования в вывод
     equipment_model_info = ""
     if 'equipment_details' in user_data and user_data['equipment_details']:
         equipment_model_info = f"\n• <b>Модель аппарата:</b> {user_data['equipment_details']}"
     
-    # Определяем возможность предложения подменного оборудования
     replacement_offer = ""
     if need_replacement == 'Да':
         if user_data['equipment'] in NO_REPLACEMENT_EQUIPMENT:
@@ -303,17 +295,14 @@ async def contact(update: Update, context):
     user_data = context.user_data
     phone = update.message.text
     
-    # Формируем информацию об оборудовании
     equipment_info = user_data['equipment']
     if user_data['equipment'] == 'УЗИ' and 'uzi_type' in user_data:
         equipment_info = f"{user_data['equipment']} ({user_data['uzi_type']})"
     
-    # Добавляем информацию о модели в уведомление администратору
     equipment_model_info = ""
     if 'equipment_details' in user_data and user_data['equipment_details']:
         equipment_model_info = f"\nМодель: {user_data['equipment_details']}"
     
-    # Отправляем уведомление администратору с полной информацией
     admin_message = (
         "🚨 НОВЫЙ ЛИД С РАСЧЕТОМ АМОРТИЗАЦИИ!\n\n"
         f"Телефон: {phone}\n"
@@ -329,7 +318,6 @@ async def contact(update: Update, context):
         f"Рабочих дней: {user_data['working_days']}"
     )
     
-    # Добавляем информацию о возможности подмены
     if user_data['need_replacement'] == 'Да':
         if user_data['equipment'] in NO_REPLACEMENT_EQUIPMENT:
             admin_message += f"\n\n❌ НЕ ПРЕДОСТАВЛЯЕМ ПОДМЕНУ: {user_data['equipment']}"
@@ -359,6 +347,7 @@ async def cancel(update: Update, context):
     return ConversationHandler.END
 
 def main():
+    # ВАЖНО: Используем Application вместо Updater
     application = Application.builder().token("8378315151:AAGkqCMlMbD54PdlpOjgxy1F-EatxPtgRTg").build()
 
     conv_handler = ConversationHandler(
@@ -383,6 +372,7 @@ def main():
 
     application.add_handler(conv_handler)
     
+    # Запускаем бота
     application.run_polling()
 
 if __name__ == '__main__':
